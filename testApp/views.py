@@ -1,6 +1,7 @@
-from .serializers import QuizSerializer
+from .serializers import QuizSerializer, QuestionSerializer, AnswerSerializer
 from rest_framework import generics, permissions
-from .models import Quiz
+from .models import Quiz, Question
+from django.shortcuts import get_object_or_404
 
 
 class QuizListView(generics.ListAPIView):
@@ -34,4 +35,23 @@ class QuizDetailView(generics.RetrieveUpdateDestroyAPIView):
         return self.destroy(request, *args, **kwargs)
 
 
+class QuestionCreateView(generics.CreateAPIView):
+    serializer_class = QuestionSerializer
 
+    def perform_create(self, serializer):
+        quiz = get_object_or_404(Quiz, id=self.kwargs['quiz_id'])
+        serializer.save(quiz=quiz)
+
+    def post(self, request, *args, **kwargs):
+        return self.create(request, *args, **kwargs)
+
+
+class AnswerCreateView(generics.CreateAPIView):
+    serializer_class = AnswerSerializer
+
+    def perform_create(self, serializer):
+        question = get_object_or_404(Question, id=self.kwargs['quest_id'])
+        serializer.save(question=question)
+
+    def post(self, request, *args, **kwargs):
+        return self.create(request, *args, **kwargs)
