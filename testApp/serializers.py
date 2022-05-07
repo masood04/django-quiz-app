@@ -22,11 +22,5 @@ class AnswerSerializer(serializers.ModelSerializer):
 
 
 class UserAnswerSerializer(serializers.Serializer):
-
-    def update(self, instance, validated_data):
-        pass
-
-    def create(self, validated_data):
-        pass
-
+    user_answer = serializers.IntegerField(required=True)
 
