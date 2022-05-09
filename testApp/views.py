@@ -2,7 +2,7 @@ from rest_framework.response import Response
 
 from .serializers import QuizSerializer, QuestionSerializer, AnswerSerializer, UserAnswerSerializer
 from rest_framework import generics, permissions
-from .models import Quiz, Question
+from .models import Quiz, Question, Answer
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 
@@ -17,7 +17,7 @@ class QuizListView(generics.ListAPIView):
 
 class QuizCreateView(generics.CreateAPIView):
     serializer_class = QuizSerializer
-    # permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAdminUser]
 
     def post(self, request, *args, **kwargs):
         return self.create(request, *args, **kwargs)
@@ -25,7 +25,7 @@ class QuizCreateView(generics.CreateAPIView):
 
 class QuizDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = QuizSerializer
-    # permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAdminUser]
     queryset = Quiz.objects.all()
 
     def get(self, request, *args, **kwargs):
@@ -40,6 +40,7 @@ class QuizDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 class QuestionListCreateView(generics.ListCreateAPIView):
     serializer_class = QuestionSerializer
+    permission_classes = [permissions.IsAdminUser]
 
     def get_queryset(self):
         quiz = get_object_or_404(Quiz, id=self.kwargs.get('quiz_id'))
@@ -53,8 +54,16 @@ class QuestionListCreateView(generics.ListCreateAPIView):
         return self.create(request, *args, **kwargs)
 
 
-class AnswerCreateView(generics.CreateAPIView):
+class AnswerCreateView(generics.ListCreateAPIView):
     serializer_class = AnswerSerializer
+    permission_classes = [permissions.IsAdminUser]
+
+    def get_queryset(self):
+        question = get_object_or_404(Question, id=self.kwargs.get('quest_id'))
+        return Answer.objects.filter(question=question)
+
+    def get(self, request, *args, **kwargs):
+        return self.list(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         question = get_object_or_404(Question, id=self.kwargs['quest_id'])
@@ -65,9 +74,9 @@ class AnswerCreateView(generics.CreateAPIView):
 
 
 class AnswerToQuestionView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
-
         serializer = UserAnswerSerializer(data=request.data)
 
         if serializer.is_valid():
@@ -75,11 +84,12 @@ class AnswerToQuestionView(APIView):
             correct_answer = question.answer_set.get(is_correct=True)
 
             if correct_answer.number == serializer.validated_data['user_answer']:
-                # request.user.point += 10
-
+                request.user.point += 10
+                request.usre.save()
                 return Response({'message': 'answer was correct.'}, status=200)
+
             else:
                 return Response({'message': 'answer was wrong! try harder.'}, status=200)
 
         else:
-            return Response(serializer.errors)
+            return Response(serializer.errors, status=400)

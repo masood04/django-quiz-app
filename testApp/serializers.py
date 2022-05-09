@@ -9,6 +9,8 @@ class QuizSerializer(serializers.ModelSerializer):
 
 
 class QuestionSerializer(serializers.ModelSerializer):
+    quiz = serializers.CharField(max_length=200, source='quiz.name', required=False, read_only=True)
+
     class Meta:
         model = Question
         fields = '__all__'

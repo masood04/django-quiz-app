@@ -3,11 +3,21 @@ from .models import User
 
 
 class UserSerializer(serializers.ModelSerializer):
+    password1 = serializers.CharField(max_length=200, required=True, write_only=True)
+    password2 = serializers.CharField(max_length=200, required=True, write_only=True)
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'password', 'email', 'first_name', 'last_name', 'point']
-        extra_kwargs = {'password': {'write_only': True}}
+        fields = ['id', 'username', 'email', 'first_name', 'is_staff',
+                  'last_name', 'point', 'password1', 'password2']
+
+    def validate(self, data):
+        if data['password1'] != data['password2']:
+            raise serializers.ValidationError('passwords are not equal')
+        data.pop('password2')
+        return data
 
     def create(self, validated_data):
-        return User.objects.create_user(**validated_data)
+        password = validated_data.get('password1')  # get password from validated data
+        validated_data.pop('password1')  # don't need password1 anymore
+        return User.objects.create_user(password=password, **validated_data)
