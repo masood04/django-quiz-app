@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 
 
 class Quiz(models.Model):
@@ -26,3 +27,12 @@ class Answer(models.Model):
 
     def __str__(self):
         return f"question: {self.question}, answer: {self.content}, correct: {self.is_correct}"
+
+
+class MarksOfUser(models.Model):
+    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, blank=True, null=True)
+    question = models.ManyToManyField(Question, blank=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.user} answer to {self.question.first()} and {self.quiz}"

@@ -1,10 +1,10 @@
 from rest_framework.response import Response
-
 from .serializers import QuizSerializer, QuestionSerializer, AnswerSerializer, UserAnswerSerializer
-from rest_framework import generics, permissions
-from .models import Quiz, Question, Answer
+from rest_framework import generics, permissions, status
+from .models import Quiz, Question, Answer, MarksOfUser
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
+from rest_framework.exceptions import NotAcceptable, NotFound
 
 
 class QuizListView(generics.ListAPIView):
@@ -19,23 +19,19 @@ class QuizCreateView(generics.CreateAPIView):
     serializer_class = QuizSerializer
     permission_classes = [permissions.IsAdminUser]
 
-    def post(self, request, *args, **kwargs):
-        return self.create(request, *args, **kwargs)
-
 
 class QuizDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = QuizSerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly, permissions.IsAdminUser]
+
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            permission_classes = [permissions.IsAuthenticated]
+        else:
+            permission_classes = [permissions.IsAdminUser]
+        return [permission() for permission in permission_classes]
+
     queryset = Quiz.objects.all()
-
-    def get(self, request, *args, **kwargs):
-        return self.retrieve(request, *args, **kwargs)
-
-    def put(self, request, *args, **kwargs):
-        return self.update(request, *args, **kwargs)
-
-    def delete(self, request, *args, **kwargs):
-        return self.destroy(request, *args, **kwargs)
 
 
 class QuestionListCreateView(generics.ListCreateAPIView):
@@ -50,9 +46,6 @@ class QuestionListCreateView(generics.ListCreateAPIView):
         quiz = get_object_or_404(Quiz, id=self.kwargs['quiz_id'])
         serializer.save(quiz=quiz)
 
-    def post(self, request, *args, **kwargs):
-        return self.create(request, *args, **kwargs)
-
 
 class AnswerCreateView(generics.ListCreateAPIView):
     serializer_class = AnswerSerializer
@@ -62,34 +55,41 @@ class AnswerCreateView(generics.ListCreateAPIView):
         question = get_object_or_404(Question, id=self.kwargs.get('quest_id'))
         return Answer.objects.filter(question=question)
 
-    def get(self, request, *args, **kwargs):
-        return self.list(request, *args, **kwargs)
-
     def perform_create(self, serializer):
         question = get_object_or_404(Question, id=self.kwargs['quest_id'])
         serializer.save(question=question)
-
-    def post(self, request, *args, **kwargs):
-        return self.create(request, *args, **kwargs)
 
 
 class AnswerToQuestionView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
+        question = get_object_or_404(Question, id=self.kwargs.get('question_id'))
+
+        if MarksOfUser.objects.filter(question=question, user=request.user, quiz=question.quiz).exists():
+            raise NotAcceptable('you already answered to this question')
+
         serializer = UserAnswerSerializer(data=request.data)
 
         if serializer.is_valid():
-            question = get_object_or_404(Question, id=self.kwargs.get('question_id'))
-            correct_answer = question.answer_set.get(is_correct=True)
+
+            try:
+                correct_answer = question.answer_set.get(is_correct=True)
+            except Answer.DoesNotExist as e:
+                raise NotFound(e)
+
+            quiz = question.quiz
+
+            marks, _ = MarksOfUser.objects.get_or_create(quiz=quiz, user=request.user)
+            marks.question.add(question)
 
             if correct_answer.number == serializer.validated_data['user_answer']:
                 request.user.point += 10
-                request.usre.save()
-                return Response({'message': 'answer was correct.'}, status=200)
+                request.user.save()
+                return Response({'message': 'answer is correct.'}, status.HTTP_200_OK)
 
             else:
-                return Response({'message': 'answer was wrong! try harder.'}, status=200)
+                return Response({'message': 'answer is wrong! try harder.'}, status.HTTP_200_OK)
 
         else:
-            return Response(serializer.errors, status=400)
+            return Response(serializer.errors, status.HTTP_400_BAD_REQUEST)
